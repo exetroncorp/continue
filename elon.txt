@@ -1,0 +1,49 @@
+scripts/install-dependencies.sh 
+pkg . 
+npm run build 
+npm install -g @yao-pkg/pkg 
+node_modules/.bin/pkg 
+node_modules/.bin/pkg-fetch 
+node_modules/.bin/pkg-fetch 
+./gradlew buildPlugin 
+sdk install java 17.0.12-oracle
+
+1 scripts/install-dependencies.sh 
+2 cd binary/ 
+3 pkg . 
+4 npm run build 
+5 npm install -g @yao-pkg/pkg 
+6 npm run build 
+7 npm uninstall pkg 
+8 pkg 
+9 npm install -g 
+10 which pkg 
+11 pkg --help 
+12 npm install @yao-pkg/pkg 
+13 npm install @yao-pkg/pkg -save-dev 
+14 node_modules/.bin/pkg 
+15 node_modules/.bin/pkg-fetch 
+16* node_modules/.bin/pkg 
+17 npm run build 
+18 clear 
+19 java -version 
+20 sdk install java 17.0.12-oracle 
+21 cd extensions/intellij/ 
+22 ./gradlew 
+23 ./gradlew buildPlugin 
+24 ./gradlew buildPlugin --scan 
+25 clear 26 jav -version 
+27 java -version 
+28 esh 
+29 nash 
+30 git status 
+31 git push 
+32 git checkout -b jjj 
+33 git status 
+34 git push 
+35 ./gradlew buildPlugin 
+36 java -version 
+37 cd extensions/ 
+38 cd intellij/ 
+39 ./gradlew buildPlugin 
+40 cat history 41 history
