@@ -12,14 +12,7 @@ import java.nio.file.Paths
 const val DEFAULT_CONFIG =
     """
 {
-  "models": [
-    {
-      "model": "claude-3-5-sonnet-latest",
-      "provider": "anthropic",
-      "apiKey": "",
-      "title": "Claude 3.5 Sonnet"
-    }
-  ],
+  "models": [],
   "tabAutocompleteModel": {
     "title": "Codestral",
     "provider": "mistral",

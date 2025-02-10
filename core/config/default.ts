@@ -93,7 +93,7 @@ export const defaultSlashCommandsJetBrains = [
 ];
 
 export const defaultConfig: SerializedContinueConfig = {
-  models: [DEFAULT_CHAT_MODEL_CONFIG],
+  models: [],
   tabAutocompleteModel: DEFAULT_AUTOCOMPLETE_MODEL_CONFIG,
   customCommands: [
     {
@@ -108,7 +108,7 @@ export const defaultConfig: SerializedContinueConfig = {
 };
 
 export const defaultConfigJetBrains: SerializedContinueConfig = {
-  models: [DEFAULT_CHAT_MODEL_CONFIG],
+  models: [],
   tabAutocompleteModel: DEFAULT_AUTOCOMPLETE_MODEL_CONFIG,
   customCommands: [
     {
