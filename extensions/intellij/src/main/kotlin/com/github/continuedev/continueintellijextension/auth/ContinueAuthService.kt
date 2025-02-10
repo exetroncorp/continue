@@ -21,6 +21,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URL
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
 
 @Service
 class ContinueAuthService {
@@ -109,8 +113,32 @@ class ContinueAuthService {
         }
     }
 
+        // Création d'un client OkHttp pour bypasser la vérification SSL.
+    // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
+    private fun getUnsafeOkHttpClient(): OkHttpClient {
+        try {
+            val trustAllCerts = arrayOf<TrustManager>(
+                object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                }
+            )
+            val sslContext = SSLContext.getInstance("SSL")
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+            val sslSocketFactory = sslContext.socketFactory            
+
+            return OkHttpClient.Builder()
+                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+                .hostnameVerifier { _, _ -> true }
+                .build()
+        } catch (e: Exception) {
+            throw RuntimeException(e)
+        }
+    }
+
     private suspend fun refreshToken(refreshToken: String) = withContext(Dispatchers.IO) {
-        val client = OkHttpClient()
+        val client = getUnsafeOkHttpClient()
         val url = URL(CONTROL_PLANE_URL).toURI().resolve("/auth/refresh").toURL()
         val jsonBody = mapOf("refreshToken" to refreshToken)
         val jsonString = Gson().toJson(jsonBody)
