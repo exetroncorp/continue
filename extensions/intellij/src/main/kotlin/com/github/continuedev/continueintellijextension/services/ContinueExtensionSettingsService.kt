@@ -22,6 +22,10 @@ import java.io.IOException
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import javax.swing.*
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
 
 class ContinueSettingsComponent : DumbAware {
     val panel: JPanel = JPanel(GridBagLayout())
@@ -113,6 +117,30 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
             get() = ServiceManager.getService(ContinueExtensionSettings::class.java)
     }
 
+    // Création d'un client OkHttp pour bypasser la vérification SSL.
+    // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
+    private fun getUnsafeOkHttpClient(): OkHttpClient {
+        try {
+            val trustAllCerts = arrayOf<TrustManager>(
+                object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                }
+            )
+            val sslContext = SSLContext.getInstance("SSL")
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+            val sslSocketFactory = sslContext.socketFactory            
+
+            return OkHttpClient.Builder()
+                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+                .hostnameVerifier { _, _ -> true }
+                .build()
+        } catch (e: Exception) {
+            throw RuntimeException(e)
+        }
+    }
+
 
     // Sync remote config from server
     private fun syncRemoteConfig() {
@@ -121,7 +149,7 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
         if (state.remoteConfigServerUrl != null && state.remoteConfigServerUrl!!.isNotEmpty()) {
             // download remote config as json file
 
-            val client = OkHttpClient()
+            val client = getUnsafeOkHttpClient()
             val baseUrl = state.remoteConfigServerUrl?.removeSuffix("/")
 
             val requestBuilder = Request.Builder().url("${baseUrl}/sync")

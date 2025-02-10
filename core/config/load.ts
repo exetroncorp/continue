@@ -2,6 +2,7 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import os from "os";
 import path from "path";
+import { pathToFileURL } from 'url';
 
 import * as JSONC from "comment-json";
 import * as tar from "tar";
@@ -812,7 +813,12 @@ async function loadFullConfigNode(
       const configJsPathForRemote = getConfigJsPathForRemote(
         ideSettings.remoteConfigServerUrl,
       );
-      const module = await import(configJsPathForRemote);
+      console.log("devx-log ideSettings.remoteConfigServerUrl",ideSettings.remoteConfigServerUrl);
+      console.log('devx-log configJsPathForRemote' , configJsPathForRemote);
+      const fileUrl = pathToFileURL(configJsPathForRemote).href;
+      console.log('devx-log' , fileUrl);
+      const module = await import(fileUrl);
+      // const module = await import(configJsPathForRemote);
       if (typeof require !== "undefined") {
         delete require.cache[require.resolve(configJsPathForRemote)];
       }
