@@ -15,17 +15,22 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Protocol
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.Interceptor
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 import javax.swing.*
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 
 class ContinueSettingsComponent : DumbAware {
     val panel: JPanel = JPanel(GridBagLayout())
@@ -117,78 +122,149 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
             get() = ServiceManager.getService(ContinueExtensionSettings::class.java)
     }
 
-    // Création d'un client OkHttp pour bypasser la vérification SSL.
-    // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
-    private fun getUnsafeOkHttpClient(): OkHttpClient {
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(
-                object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                }
-            )
-            val sslContext = SSLContext.getInstance("SSL")
-            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-            val sslSocketFactory = sslContext.socketFactory            
+    private val LOG_PREFIX = "[ZEBI=mc2 CORP since 1985]"
 
-            return OkHttpClient.Builder()
-                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
-                .build()
-        } catch (e: Exception) {
-            throw RuntimeException(e)
-        }
+    private fun log(message: String) {
+        println("$LOG_PREFIX $message")
     }
 
 
-    // Sync remote config from server
+    // Création d'un client OkHttp pour bypasser la vérification SSL.
+        // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
+    private fun getUnsafeOkHttpClient(): OkHttpClient {
+        try {
+            log("Initializing unsafe OkHttpClient...")
+            
+            val trustAllCerts = arrayOf<TrustManager>(
+                object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        log("Client cert check bypassed for authType: $authType")
+                    }
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        log("Server cert check bypassed for authType: $authType")
+                    }
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                }
+            )
+    
+            val sslContext = SSLContext.getInstance("TLS").apply {
+                init(null, trustAllCerts, java.security.SecureRandom())
+                log("SSL Context initialized with protocol: ${this.protocol}")
+            }
+    
+            val loggingInterceptor = HttpLoggingInterceptor { message ->
+                log(message)
+            }.apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
+            
+            return OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+                .hostnameVerifier { hostname, session -> 
+                    log("Hostname verification bypassed for: $hostname, protocol: ${session.protocol}")
+                    true
+                }
+                .addInterceptor(loggingInterceptor)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .protocols(listOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+                .build()
+                .also { log("OkHttpClient configured successfully") }
+        } catch (e: Exception) {
+            log("Failed to create OkHttpClient: ${e.message}")
+            e.printStackTrace()
+            throw RuntimeException(e)
+        }
+    }
+    
+    
+        // Sync remote config from server
     private fun syncRemoteConfig() {
         val state = instance.continueState
-
+        log("Starting remote config sync...")
+    
         if (state.remoteConfigServerUrl != null && state.remoteConfigServerUrl!!.isNotEmpty()) {
-            // download remote config as json file
-
             val client = getUnsafeOkHttpClient()
             val baseUrl = state.remoteConfigServerUrl?.removeSuffix("/")
-
-            val requestBuilder = Request.Builder().url("${baseUrl}/sync")
-
+            val fullUrl = "${baseUrl}/sync"
+            
+            log("Preparing request to: $fullUrl")
+    
+            val requestBuilder = Request.Builder()
+                .url(fullUrl)
+                .addHeader("Accept", "application/json")
+                .addHeader("User-Agent", "ContinueExtension/${ApplicationInfo.getInstance().fullVersion}")
+    
             if (state.userToken != null) {
+                log("Adding authorization header")
                 requestBuilder.addHeader("Authorization", "Bearer ${state.userToken}")
             }
-
+    
             val request = requestBuilder.build()
             var configResponse: ContinueRemoteConfigSyncResponse? = null
-
+    
             try {
+                log("Executing request...")
                 client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw IOException("Unexpected code $response")
+                    log("Response received: ${response.code} ${response.message}")
+                    log("Response protocol: ${response.protocol}")
+                    log("TLS handshake: ${response.handshake?.tlsVersion}")
+                    
+                    if (!response.isSuccessful) {
+                        throw IOException("Unexpected response code: ${response.code}")
+                    }
+    
+                    // response.body?.string()?.let { responseBody ->
+                    //     try {
+                    //         log("Parsing response body...")
+                    //         log("Raw response: $responseBody")
+                    //         configResponse = Json.decodeFromString<ContinueRemoteConfigSyncResponse>(responseBody)
+                    //         log("Response parsed successfully")
+                    //     } catch (e: Exception) {
+                    //         log("Failed to parse response: ${e.message}")
+                    //         e.printStackTrace()
+                    //         return
+                    //     }
+                    // }
 
-                    response.body?.string()?.let { responseBody ->
+                                    // Read the response body only once
+                    val responseBodyString = response.body?.string()
+                    log("Raw response: $responseBodyString")
+                    if (responseBodyString != null) {
                         try {
-                            configResponse =
-                                Json.decodeFromString<ContinueRemoteConfigSyncResponse>(responseBody)
+                            configResponse = Json.decodeFromString<ContinueRemoteConfigSyncResponse>(responseBodyString)
+                            log("Response parsed successfully")
                         } catch (e: Exception) {
+                            log("Failed to parse response: ${e.message}")
                             e.printStackTrace()
                             return
                         }
+                    } else {
+                        log("Response body is null")
                     }
                 }
+    
+                if (configResponse?.configJson?.isNotEmpty() == true) {
+                    val file = File(getConfigJsonPath(request.url.host))
+                    file.writeText(configResponse!!.configJson!!)
+                    log("Config JSON written to: ${file.absolutePath}")
+                }
+    
+                if (configResponse?.configJs?.isNotEmpty() == true) {
+                    val file = File(getConfigJsPath(request.url.host))
+                    file.writeText(configResponse!!.configJs!!)
+                    log("Config JS written to: ${file.absolutePath}")
+                }
+    
             } catch (e: IOException) {
+                log("Network operation failed: ${e.message}")
                 e.printStackTrace()
                 return
             }
-
-            if (configResponse?.configJson?.isNotEmpty()!!) {
-                val file = File(getConfigJsonPath(request.url.host))
-                file.writeText(configResponse!!.configJson!!)
-            }
-
-            if (configResponse?.configJs?.isNotEmpty()!!) {
-                val file = File(getConfigJsPath(request.url.host))
-                file.writeText(configResponse!!.configJs!!)
-            }
+        } else {
+            log("Remote config server URL is empty or null")
         }
     }
 

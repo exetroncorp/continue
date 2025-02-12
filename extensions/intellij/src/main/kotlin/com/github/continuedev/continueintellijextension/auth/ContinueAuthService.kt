@@ -17,18 +17,30 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Protocol
+import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.Interceptor
 import java.net.URL
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import java.io.IOException
+
 
 @Service
 class ContinueAuthService {
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
+
+    private val LOG_PREFIX = "[ZEBI=mc2 CORP since 1985]"
+
+    private fun log(message: String) {
+        println("$LOG_PREFIX $message")
+    }
 
     companion object {
         fun getInstance(): ContinueAuthService = service<ContinueAuthService>()
@@ -117,46 +129,100 @@ class ContinueAuthService {
     // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
     private fun getUnsafeOkHttpClient(): OkHttpClient {
         try {
+            log("Initializing unsafe OkHttpClient...")
+            
             val trustAllCerts = arrayOf<TrustManager>(
                 object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        log("Client cert check bypassed for authType: $authType")
+                    }
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        log("Server cert check bypassed for authType: $authType")
+                    }
                     override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
                 }
             )
-            val sslContext = SSLContext.getInstance("SSL")
-            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-            val sslSocketFactory = sslContext.socketFactory            
-
+    
+            val sslContext = SSLContext.getInstance("TLS").apply {
+                init(null, trustAllCerts, java.security.SecureRandom())
+                log("SSL Context initialized with protocol: ${this.protocol}")
+            }
+    
+            val loggingInterceptor = HttpLoggingInterceptor { message ->
+                log(message)
+            }.apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
+            
             return OkHttpClient.Builder()
-                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
+                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+                .hostnameVerifier { hostname, session -> 
+                    log("Hostname verification bypassed for: $hostname, protocol: ${session.protocol}")
+                    true
+                }
+                .addInterceptor(loggingInterceptor)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .protocols(listOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
                 .build()
+                .also { log("OkHttpClient configured successfully") }
         } catch (e: Exception) {
+            log("Failed to create OkHttpClient: ${e.message}")
+            e.printStackTrace()
             throw RuntimeException(e)
         }
     }
 
     private suspend fun refreshToken(refreshToken: String) = withContext(Dispatchers.IO) {
-        val client = getUnsafeOkHttpClient()
-        val url = URL(CONTROL_PLANE_URL).toURI().resolve("/auth/refresh").toURL()
-        val jsonBody = mapOf("refreshToken" to refreshToken)
-        val jsonString = Gson().toJson(jsonBody)
-        val requestBody = jsonString.toRequestBody("application/json".toMediaType())
-
-        val request = Request.Builder()
-            .url(url)
-            .post(requestBody)
-            .header("Content-Type", "application/json")
-            .build()
-
-        val response = client.newCall(request).execute()
-
-        val responseBody = response.body?.string()
-        val gson = Gson()
-        val responseMap = gson.fromJson(responseBody, Map::class.java)
-
-        responseMap
+        log("Starting token refresh...")
+        try {
+            val client = getUnsafeOkHttpClient()
+            val url = URL(CONTROL_PLANE_URL).toURI().resolve("/auth/refresh").toURL()
+            log("Refresh token URL: $url")
+    
+            val jsonBody = mapOf("refreshToken" to refreshToken)
+            val jsonString = Gson().toJson(jsonBody)
+            log("Preparing request body: $jsonString")
+    
+            val requestBody = jsonString.toRequestBody("application/json".toMediaType())
+    
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .header("Content-Type", "application/json")
+                .build()
+    
+            log("Executing refresh token request...")
+            val response = client.newCall(request).execute()
+            log("Response received: ${response.code} ${response.message}")
+            log("Response protocol: ${response.protocol}")
+            log("TLS handshake: ${response.handshake?.tlsVersion}")
+    
+            val responseBody = response.body?.string()
+            log("Raw response body: $responseBody")
+    
+            if (!response.isSuccessful) {
+                log("Refresh token request failed with code: ${response.code}")
+                throw IOException("Unexpected response code: ${response.code}")
+            }
+    
+            val gson = Gson()
+            try {
+                val responseMap = gson.fromJson(responseBody, Map::class.java)
+                log("Successfully parsed response")
+                responseMap
+            } catch (e: Exception) {
+                log("Failed to parse response: ${e.message}")
+                e.printStackTrace()
+                throw e
+            }
+        } catch (e: Exception) {
+            log("Token refresh failed: ${e.message}")
+            e.printStackTrace()
+            throw e
+        }
     }
 
 
