@@ -29,6 +29,7 @@ dependencies {
         exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
     }
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.4.32")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("io.ktor:ktor-server-core:2.3.7") {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
