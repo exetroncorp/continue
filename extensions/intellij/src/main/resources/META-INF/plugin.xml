@@ -2,7 +2,7 @@
 <idea-plugin>
     <id>com.github.continuedev.continueintellijextension</id>
     <name>Continue</name>
-    <vendor url="https://www.continue.dev/">continue-dev</vendor>
+    <vendor url="https://www.continue.dev/">continue-devx</vendor>
     <change-notes>
         <![CDATA[View the latest release notes on <a href="https://github.com/continuedev/continue/releases">GitHub</a>]]></change-notes>
 

@@ -31,6 +31,8 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import java.nio.file.Files
+import java.nio.file.Paths
 
 class ContinueSettingsComponent : DumbAware {
     val panel: JPanel = JPanel(GridBagLayout())
@@ -128,15 +130,15 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
             get() = ServiceManager.getService(ContinueExtensionSettings::class.java)
     }
 
-    private val LOG_PREFIX = "[ZEBI=mc2 CORP since 1985]"
+    private val LOG_PREFIX = "[DEBUGIX CORP since 1985]"
 
     private fun log(message: String) {
-        println("$LOG_PREFIX $message")
+        //println("$LOG_PREFIX $message")
     }
 
 
     // Création d'un client OkHttp pour bypasser la vérification SSL.
-        // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production.
+    // ATTENTION : cette méthode désactive la sécurité SSL et ne doit pas être utilisée en production sauf en intranet.
     private fun getUnsafeOkHttpClient(): OkHttpClient {
         try {
             log("Initializing unsafe OkHttpClient...")
@@ -189,6 +191,7 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
         // Sync remote config from server
     private fun syncRemoteConfig() {
         val state = instance.continueState
+        println("using custom devx client")
         log("Starting remote config sync...")
     
         if (state.remoteConfigServerUrl != null && state.remoteConfigServerUrl!!.isNotEmpty()) {
@@ -252,20 +255,37 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
                     }
                 }
     
-                if (configResponse?.configJson?.isNotEmpty() == true) {
-                    val file = File(getConfigJsonPath(request.url.host))
-                    file.writeText(configResponse!!.configJson!!)
-                    log("Config JSON written to: ${file.absolutePath}")
-                }
-    
-                if (configResponse?.configJs?.isNotEmpty() == true) {
-                    val file = File(getConfigJsPath(request.url.host))
-                    file.writeText(configResponse!!.configJs!!)
-                    log("Config JS written to: ${file.absolutePath}")
-                }
+            val localResponse = configResponse
+            log("localResponse" + configResponse)
+            if (localResponse?.configJson?.isNotEmpty() == true) {
+
+                log("inside first configJson if - 1  ")
+
+                val jsonPath = Paths.get(getConfigJsonPath(request.url.host))
+
+                log("inside first configJson if -  2 " + jsonPath )
+                // Create all non-existent parent directories.
+                log("Try to creats dir :  ${jsonPath.parent}")
+                Files.createDirectories(jsonPath.parent)
+                log("after Try to creats dir :  ${jsonPath.parent}")
+                jsonPath.toFile().writeText(localResponse.configJson!!)
+                log("after  jsonPath.toFile().writeText(localResponse.configJson!!)")
+                log("Config JSON written to: ${jsonPath.toAbsolutePath()}")
+            } else {
+                log("No config JSON available")
+            }
+            
+            if (localResponse?.configJs?.isNotEmpty() == true) {
+                val jsPath = Paths.get(getConfigJsPath(request.url.host))
+                Files.createDirectories(jsPath.parent)
+                jsPath.toFile().writeText(localResponse.configJs!!)
+                log("Config JS written to: ${jsPath.toAbsolutePath()}")
+            } else {
+                log("No config JS available")
+            }
     
             } catch (e: IOException) {
-                log("Network operation failed: ${e.message}")
+                log("Network operation or File creation failed: ${e.message}")
                 e.printStackTrace()
                 return
             }

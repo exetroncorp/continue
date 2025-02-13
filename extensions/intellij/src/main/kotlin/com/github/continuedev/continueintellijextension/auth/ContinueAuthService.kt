@@ -36,10 +36,10 @@ import java.io.IOException
 class ContinueAuthService {
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
-    private val LOG_PREFIX = "[ZEBI=mc2 CORP since 1985]"
+    private val LOG_PREFIX = "[DEBUGIX]"
 
     private fun log(message: String) {
-        println("$LOG_PREFIX $message")
+        //println("$LOG_PREFIX $message")
     }
 
     companion object {

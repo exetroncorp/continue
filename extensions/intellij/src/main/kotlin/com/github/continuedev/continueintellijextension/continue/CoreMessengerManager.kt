@@ -64,11 +64,12 @@ class CoreMessengerManager(
             val result = responseContent["result"] as Map<*, *>
             val config = result["config"] as Map<String, Any>
 
-            val allowAnonymousTelemetry = config?.get("allowAnonymousTelemetry") as? Boolean
-            val telemetryService = service<TelemetryService>()
-            if (allowAnonymousTelemetry == true || allowAnonymousTelemetry == null) {
-                telemetryService.setup(getMachineUniqueID())
-            }
+            //val allowAnonymousTelemetry = config?.get("allowAnonymousTelemetry") as? Boolean
+            //val telemetryService = service<TelemetryService>()
+            //if (allowAnonymousTelemetry == true || allowAnonymousTelemetry == null) {
+                //telemetryService.setup(getMachineUniqueID())
+                // println("[DEBUGIX] TELEMETRY DISABLED BY ROBERT")
+            //}
         }
 
         // On exit, use exponential backoff to create another CoreMessenger

@@ -72,14 +72,28 @@ export {
 """
 
 fun getContinueGlobalPath(): String {
+
+       //println("DEBUGIX getContinueGlobalPath start ")
+
   val continuePath = Paths.get(System.getProperty("user.home"), ".continue")
+
+         //println("DEBUGIX getContinueGlobalPath  " +  continuePath)
+
   if (Files.notExists(continuePath)) {
+               //println("DEBUGIX getContinueGlobalPath Files.createDirectories(continuePath) " )
+
     Files.createDirectories(continuePath)
   }
+
+           //println("DEBUGIX getContinueGlobalPath fin " )
+
   return continuePath.toString()
 }
 
 fun getContinueRemoteConfigPath(remoteHostname: String): String {
+
+     //println("DEBUGIX getContinueRemoteConfigPath start " + remoteHostname)
+
   val path = Paths.get(getContinueGlobalPath(), ".configs")
   if (Files.notExists(path)) {
     Files.createDirectories(path)
@@ -88,15 +102,28 @@ fun getContinueRemoteConfigPath(remoteHostname: String): String {
 }
 
 fun getConfigJsonPath(remoteHostname: String? = null): String {
+  //println("DEBUGIX getConfigJsonPath start" )
   val path =
       Paths.get(
           if (remoteHostname != null) getContinueRemoteConfigPath(remoteHostname)
           else getContinueGlobalPath(),
           "config.json")
+   //println("DEBUGIX getConfigJsonPath 2 " + path)
   if (Files.notExists(path)) {
-    Files.createFile(path)
+       //println("DEBUGIX getConfigJsonPath 3 " + path)
+
+    if (Files.notExists(path.parent)) {
+        Files.createDirectories(path.parent)
+    }
+       //println("DEBUGIX getConfigJsonPath 4 " + path)
+
     Files.writeString(path, if (remoteHostname == null) DEFAULT_CONFIG else "{}")
+
+       //println("DEBUGIX getConfigJsonPath 5 " + path)
+
   }
+
+   //println("DEBUGIX getConfigJsonPath end "+ path.toString())
   return path.toString()
 }
 
