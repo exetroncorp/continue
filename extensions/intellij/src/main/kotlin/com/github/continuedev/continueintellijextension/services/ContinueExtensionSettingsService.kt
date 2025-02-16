@@ -251,18 +251,35 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
                         log("Response body is null")
                     }
                 }
+val localResponse = configResponse  // capture the current value in a read-only variable
+if (localResponse?.configJson?.isNotEmpty() == true) {
+    val jsonFile = File(getConfigJsonPath(request.url.host))
+    jsonFile.parentFile.mkdirs() // Ensure parent directories exist
+    jsonFile.writeText(localResponse.configJson!!)
+    log("Config JSON written to: ${jsonFile.absolutePath}")
+} else {
+    log("No config JSON available")
+}
+
+if (localResponse?.configJs?.isNotEmpty() == true) {
+    val jsFile = File(getConfigJsPath(request.url.host))
+    jsFile.parentFile.mkdirs() // Ensure parent directories exist
+    jsFile.writeText(localResponse.configJs!!)
+    log("Config JS written to: ${jsFile.absolutePath}")
+} else {
+    log("No config JS available")
+}
+
+                
     
-                if (configResponse?.configJson?.isNotEmpty() == true) {
-                    val file = File(getConfigJsonPath(request.url.host))
-                    file.writeText(configResponse!!.configJson!!)
-                    log("Config JSON written to: ${file.absolutePath}")
-                }
-    
-                if (configResponse?.configJs?.isNotEmpty() == true) {
-                    val file = File(getConfigJsPath(request.url.host))
-                    file.writeText(configResponse!!.configJs!!)
-                    log("Config JS written to: ${file.absolutePath}")
-                }
+                // if (configResponse?.configJs?.isNotEmpty() == true) {
+                //            if (file.parentFile.mkdirs() || file.parentFile.exists()) {
+                //      file.writeText(configResponse.configJson!!)
+                //      log("Config JSON written to: ${file.absolutePath}")
+                //  } else {
+                //      log("Failed to create directories for file: ${file.absolutePath}")
+                //  }
+                // }
     
             } catch (e: IOException) {
                 log("Network operation failed: ${e.message}")

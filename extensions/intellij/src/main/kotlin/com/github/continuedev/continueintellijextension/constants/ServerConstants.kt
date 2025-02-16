@@ -88,11 +88,13 @@ fun getContinueRemoteConfigPath(remoteHostname: String): String {
 }
 
 fun getConfigJsonPath(remoteHostname: String? = null): String {
+  println("ZEBI INSIDE getConfigJsonPath supposed to create ")
   val path =
       Paths.get(
           if (remoteHostname != null) getContinueRemoteConfigPath(remoteHostname)
           else getContinueGlobalPath(),
           "config.json")
+  println("ZEBI INSIDE getConfigJsonPath supposed to create "  + path)
   if (Files.notExists(path)) {
     Files.createFile(path)
     Files.writeString(path, if (remoteHostname == null) DEFAULT_CONFIG else "{}")
